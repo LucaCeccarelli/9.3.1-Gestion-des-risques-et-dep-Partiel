@@ -59,13 +59,18 @@ def test_no_track_found_still_wakes_up_with_bare_title(prefs):
 def test_degraded_delivery_is_reported(prefs):
     class DegradedNotifier:
         def send(self, message):
-            return Channel.CONSOLE
+            return Channel.FALLBACK
 
     service = make_service(prefs, FakeMusic(Track("x", "y")), DegradedNotifier())
     msg = service.wake_up("u1", Day.LUNDI, Weather.SOLEIL)
-    assert msg.channel == Channel.SMS and msg.delivered_via == Channel.CONSOLE
+    assert msg.channel == Channel.SMS and msg.delivered_via == Channel.FALLBACK
 
 
 def test_empty_fallback_is_rejected_at_construction():
     with pytest.raises(ValueError):
-        UserPreferences("x", tracks_by_weather={}, fallback_tracks=[], channel=Channel.EMAIL)
+        UserPreferences("x", {}, [], Channel.EMAIL, contacts={Channel.EMAIL: "x@example.com"})
+
+
+def test_preferred_channel_without_contact_is_rejected():
+    with pytest.raises(ValueError):
+        UserPreferences("x", {}, ["a"], Channel.EMAIL, contacts={Channel.SMS: "+33600000000"})

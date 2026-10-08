@@ -27,7 +27,7 @@ class Channel(StrEnum):
     EMAIL = "EMAIL"
     SMS = "SMS"
     PUSH = "PUSH"
-    CONSOLE = "CONSOLE"  # dernier recours, jamais choisi par un utilisateur
+    FALLBACK = "FALLBACK"  # dernier recours hors canaux utilisateur, jamais choisi par un utilisateur
 
 
 @dataclass(frozen=True)
@@ -42,11 +42,14 @@ class UserPreferences:
     tracks_by_weather: Mapping[Weather, Sequence[str]]  # météo -> morceaux souhaités
     fallback_tracks: Sequence[str]  # morceaux de secours pour les cas non couverts
     channel: Channel
+    contacts: Mapping[Channel, str]  # canal -> adresse, numéro, jeton d'appareil…
     tracks_by_day: Mapping[Day, Sequence[str]] = field(default_factory=dict)  # jour -> morceaux
 
     def __post_init__(self) -> None:
         if not self.fallback_tracks:  # garantit candidates() non vide : jamais de silence
             raise ValueError(f"{self.user_id} : au moins un morceau de secours requis")
+        if self.channel not in self.contacts:
+            raise ValueError(f"{self.user_id} : pas de contact pour le canal {self.channel}")
 
     def candidates(self, day: Day, weather: Weather) -> list[str]:
         """Morceaux possibles : ceux du jour et ceux de la météo réunis, sinon les secours."""
@@ -61,6 +64,7 @@ class WakeUpMessage:
     day: Day
     weather: Weather
     track: Track
+    contacts: Mapping[Channel, str]
     delivered_via: Channel | None = None  # canal réellement utilisé, renseigné après envoi
 
     @property

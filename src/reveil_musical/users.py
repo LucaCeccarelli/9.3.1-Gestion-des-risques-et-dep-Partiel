@@ -27,6 +27,7 @@ DEMO_USERS = {
         },
         fallback_tracks=["Lovely Day"],
         channel=Channel.EMAIL,
+        contacts={Channel.EMAIL: "alice@example.com", Channel.SMS: "+33600000001"},
     ),
     "bob": UserPreferences(
         user_id="bob",
@@ -34,11 +35,13 @@ DEMO_USERS = {
         tracks_by_day={Day.LUNDI: ["Manic Monday", "Blue Monday"], Day.VENDREDI: ["Friday I'm in Love"]},
         fallback_tracks=["Wake Me Up", "Good Morning"],
         channel=Channel.SMS,
+        contacts={Channel.SMS: "+33600000002", Channel.PUSH: "device-bob"},
     ),
     "carol": UserPreferences(
         user_id="carol",
         tracks_by_weather={Weather.NUAGEUX: ["Cloudbusting"]},
         fallback_tracks=["Good Morning"],
         channel=Channel.PUSH,
+        contacts={Channel.PUSH: "device-carol"},
     ),
 }

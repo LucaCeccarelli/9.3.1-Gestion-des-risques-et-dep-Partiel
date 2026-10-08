@@ -12,10 +12,12 @@ LOCAL_TRACKS = (
 
 class LocalMusicProvider:
     def __init__(self, tracks: tuple[Track, ...] = LOCAL_TRACKS) -> None:
+        if not tracks:
+            raise ValueError("au moins un morceau local requis")
         self._tracks = tracks
 
-    def find(self, query: str) -> Track | None:
-        """Complète l'artiste si le titre est dans la liste ; sinon None : le cas d'usage garde
-        le titre choisi par l'utilisateur plutôt que de lui imposer un autre morceau."""
+    def find(self, query: str) -> Track:
+        """Le morceau demandé s'il est dans la liste, sinon le premier de la liste : jamais de silence."""
+        # ponytail: toujours le premier morceau en secours ; tirage au sort si la monotonie gêne
         wanted = query.casefold()
-        return next((t for t in self._tracks if wanted in t.title.casefold()), None)
+        return next((t for t in self._tracks if wanted in t.title.casefold()), self._tracks[0])

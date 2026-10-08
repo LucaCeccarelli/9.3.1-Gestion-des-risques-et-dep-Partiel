@@ -36,8 +36,10 @@ lundi et ceux de la neige sont tous candidats). Si aucune des deux listes ne cou
 tirage parmi les morceaux de secours. Réponses : `404` utilisateur inconnu, `422` entrée invalide.
 Une panne de canal ne produit jamais d'erreur : voir « Jamais de silence » ci-dessous.
 `channel` est le canal préféré, `delivered_via` celui réellement utilisé : s'ils diffèrent,
-l'envoi s'est fait en mode dégradé (`CONSOLE` = dernier recours).
-Utilisateurs de démo : `alice` (email), `bob` (SMS), `carol` (push) — voir `users.py`.
+l'envoi s'est fait en mode dégradé (`FALLBACK` = dernier recours, hors canaux utilisateur).
+Utilisateurs de démo : `alice` (email), `bob` (SMS), `carol` (push) — voir `users.py`. Le service
+de préférences fournit aussi, par canal, le contact (adresse, numéro, jeton d'appareil) : un canal
+sans contact n'est jamais tenté, et le canal préféré doit en avoir un (vérifié à la construction).
 
 Extension assumée du sujet : l'énoncé décrit *un* morceau par type de météo et *un* morceau de
 secours. J'ai gardé ce contrat (une liste à un élément s'y ramène) mais l'ai élargi à
@@ -59,8 +61,8 @@ src/reveil_musical/
 │   ├── http.py          port HttpClient + implémentation urllib (stdlib)
 │   ├── itunes.py        adaptateur iTunes Search API
 │   ├── musicbrainz.py   adaptateur MusicBrainz (User-Agent identifiable)
-│   ├── local.py         liste codée en dur : complète un titre connu sans réseau, ne tombe jamais
-│   └── resilient.py     CachedMusicProvider (rate-limit) + FallbackChainMusicProvider
+│   ├── local.py         liste codée en dur : titre connu complété, sinon un morceau de la liste, ne tombe jamais
+│   └── resilient.py     CachedMusicProvider + RateLimitedMusicProvider + FallbackChainMusicProvider
 ├── notification/
 │   ├── mocks.py         EmailMock / SmsMock / PushMock, interfaces volontairement différentes
 │   ├── adapters.py      ramènent chaque mock vers le port Notifier
@@ -76,7 +78,7 @@ Traduction des quatre exigences :
 | Changer de fournisseur musical | `MusicProvider` est un port ; iTunes, MusicBrainz et le fallback local sont interchangeables. `trackViewUrl` et `artist-credit` ne sortent pas de leur adaptateur : le métier ne voit que `Track(title, artist)`. |
 | Ajouter un canal (WhatsApp, vocal…) | Une valeur dans l'enum `Channel`, un adaptateur `Notifier` et une entrée dans le `ChannelRouter` du conteneur. Le métier ne change pas. |
 | Vérification des dépendances | Tableau ci-dessous, régénérable avec `uv tree --outdated` et `uvx pip-licenses`. HTTP sortant via `urllib` (stdlib), pas de SDK tiers. |
-| Jamais de silence | Chaîne de fournisseurs avec fallback local en fin de chaîne ; routeur de canaux qui bascule sur un autre canal si le préféré est en panne, et sur `ConsoleNotifier` (dernier recours, ne dépend de rien) si tous le sont. Une panne est journalisée (`WARNING`, `ERROR` pour le dernier recours), jamais bloquante : l'API répond toujours `200` et expose le canal utilisé dans `delivered_via`. Si aucun fournisseur ne connaît le titre (tous en panne, ou titre absent de la liste locale), le titre choisi par l'utilisateur est envoyé tel quel, avec « artiste inconnu » : le mode dégradé ne remplace jamais le morceau choisi par un autre. |
+| Jamais de silence | Chaîne de fournisseurs avec la liste locale en fin de chaîne : elle complète l'artiste d'un titre qu'elle connaît, sinon elle répond avec le premier morceau de la liste, comme le demande le sujet (une liste codée en dur quand aucun fournisseur n'est disponible). Routeur de canaux qui bascule sur un autre canal de l'utilisateur si le préféré est en panne, et sur `ConsoleNotifier` (dernier recours, ne dépend de rien, canal `FALLBACK`) si tous le sont. Une panne est journalisée (`WARNING`, `ERROR` pour le dernier recours), jamais bloquante : l'API répond toujours `200` et expose le canal utilisé dans `delivered_via`. Garde-fou supplémentaire dans le cas d'usage : si la chaîne ne retourne rien (assemblage sans fournisseur local), le titre choisi par l'utilisateur part tel quel avec « artiste inconnu ». |
 
 Isolation / DI : `WakeUpService` ne reçoit que des ports via son constructeur. Aucune classe
 métier n'instancie d'implémentation concrète ; l'assemblage est déclaré dans `container.py`
@@ -86,12 +88,13 @@ font les tests, et ce que ferait un changement de fournisseur en production. L'A
 service par `Depends`, elle ne connaît pas non plus les implémentations.
 
 Rate-limit iTunes (~20 req/min) : deux décorateurs empilés. `CachedMusicProvider` mémorise
-chaque requête réussie 1 h : un même titre n'est demandé à iTunes qu'une fois par heure, quel
-que soit le nombre d'utilisateurs qui l'ont choisi. En dessous, `RateLimitedMusicProvider`
-compte les appels réels dans une fenêtre glissante (20 par 60 s pour iTunes, 1 par seconde pour
-MusicBrainz) : au-delà du quota, il répond `None` sans appeler l'API et la chaîne passe au
-fournisseur suivant. Un fournisseur en panne est donc lui aussi sollicité au plus 20 fois par
-minute. Limites assumées : compteurs en mémoire du processus (un quota par instance, pas
+chaque réponse 1 h, trouvée ou non (un titre inconnu n'est pas redemandé pendant une heure) ;
+seule une panne, qui lève, n'est pas mémorisée. Un même titre n'est donc demandé à iTunes
+qu'une fois par heure, quel que soit le nombre d'utilisateurs qui l'ont choisi. En dessous,
+`RateLimitedMusicProvider` compte les appels réels dans une fenêtre glissante (20 par 60 s pour
+iTunes, 1 par seconde pour MusicBrainz) : au-delà du quota, il lève sans appeler l'API, le
+fournisseur est traité comme indisponible et la chaîne passe au suivant. Un fournisseur en
+panne est donc lui aussi sollicité au plus 20 fois par minute. Limites assumées : compteurs en mémoire du processus (un quota par instance, pas
 partagé entre plusieurs workers) et cache sans borne de taille (une entrée par titre distinct).
 
 ## Design patterns
@@ -194,13 +197,13 @@ Services externes (pas de SDK, appelés en HTTP via la stdlib) :
 | Service | Clé | Contrainte | Prise en compte |
 |---|---|---|---|
 | iTunes Search API | aucune | ~20 req/min | cache 1 h par titre, puis quota 20 appels / 60 s |
-| MusicBrainz WS/2 | aucune | `User-Agent` identifiable obligatoire, 1 req/s | en-tête `ReveilMusical/0.1 (contact@…)` ; cache 1 h, puis quota 1 appel / s |
+| MusicBrainz WS/2 | aucune | `User-Agent` identifiable obligatoire, 1 req/s | en-tête `ReveilMusical/0.1 (luca.ceccarelli@etu.mines-ales.fr)` ; cache 1 h, puis quota 1 appel / s |
 
 ## Tests
 
-`uv run pytest` : 38 tests, 98 % de couverture, seuil d'échec à 95 % (`--cov-fail-under`).
-Les seules lignes non couvertes sont l'appel réseau réel (`urllib`), le lancement d'uvicorn et
-une branche de refus du mock SMS, volontairement hors tests unitaires.
+`uv run pytest` : 42 tests, 98 % de couverture, seuil d'échec à 95 % (`--cov-fail-under`).
+Les seules lignes non couvertes sont l'appel réseau réel (`urllib`) et le lancement d'uvicorn,
+volontairement hors tests unitaires.
 
 Lint : `ruff` (règles pyflakes, pycodestyle, isort, pyupgrade, bugbear, bandit, blind-except).
 CI : `.github/workflows/ci.yml` lance `uv sync --locked`, `ruff check` et `pytest` à chaque push.

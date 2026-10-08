@@ -15,14 +15,14 @@ class FakeMusic:
 
 
 class FakeNotifier:
-    def __init__(self, error=None):
-        self.error, self.sent = error, []
+    def __init__(self, error=None, channel=None):
+        self.error, self.channel, self.sent = error, channel, []
 
     def send(self, message):
         if self.error:
             raise self.error
         self.sent.append(message)
-        return message.channel
+        return self.channel or message.channel
 
 
 class FirstPicker:
@@ -49,9 +49,13 @@ def prefs():
         tracks_by_day={Day.DIMANCHE: ["Lazy Sunday"]},
         fallback_tracks=["Lovely Day"],
         channel=Channel.SMS,
+        contacts={Channel.SMS: "+33600000001", Channel.EMAIL: "u1@example.com"},
     )
 
 
 @pytest.fixture
 def message():
-    return WakeUpMessage("u1", Channel.SMS, Day.LUNDI, Weather.PLUIE, Track("Lovely Day", "Bill Withers"))
+    return WakeUpMessage(
+        "u1", Channel.SMS, Day.LUNDI, Weather.PLUIE, Track("Lovely Day", "Bill Withers"),
+        contacts={Channel.SMS: "+33600000001", Channel.EMAIL: "u1@example.com", Channel.PUSH: "device-u1"},
+    )

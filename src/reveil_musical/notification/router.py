@@ -14,7 +14,7 @@ class ConsoleNotifier:
 
     def send(self, message: WakeUpMessage) -> Channel:
         print(f"[CONSOLE] {message.user_id}: {message.text}")
-        return Channel.CONSOLE
+        return Channel.FALLBACK
 
 
 class ChannelRouter:
@@ -28,13 +28,13 @@ class ChannelRouter:
         order = [message.channel] + [c for c in self._notifiers if c != message.channel]
         for channel in order:
             notifier = self._notifiers.get(channel)
-            if notifier is None:
+            if notifier is None or channel not in message.contacts:
                 continue
             try:
-                notifier.send(message)
-                if channel != message.channel:
-                    log.warning("mode dégradé : %s envoyé via %s", message.user_id, channel)
-                return channel
+                used = notifier.send(message)
+                if used != message.channel:
+                    log.warning("mode dégradé : %s envoyé via %s", message.user_id, used)
+                return used
             except Exception as exc:  # noqa: BLE001 — panne du canal => suivant
                 log.warning("canal %s en panne : %s", channel, exc)
         log.error("tous les canaux en panne : %s envoyé via le dernier recours", message.user_id)

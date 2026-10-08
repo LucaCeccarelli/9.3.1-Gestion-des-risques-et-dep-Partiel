@@ -25,7 +25,8 @@ def test_itunes_maps_response_without_leaking_url():
     http = FakeHttp(ITUNES)
     track = ITunesMusicProvider(http).find("here comes")
     assert track == Track("Here Comes the Sun", "The Beatles")
-    assert "term=here+comes" in http.requests[0][0] and "media=music" in http.requests[0][0]
+    url = http.requests[0][0]
+    assert "term=here+comes" in url and "media=music" in url and "limit=5" in url
 
 
 def test_itunes_empty_results():
@@ -45,10 +46,15 @@ def test_musicbrainz_skips_incomplete():
     assert MusicBrainzMusicProvider(http, "ua").find("x") is None
 
 
-def test_local_matches_title_else_none():
+def test_local_matches_title_else_first_of_list():
     local = LocalMusicProvider()
     assert local.find("lovely day") == Track("Lovely Day", "Bill Withers")
-    assert local.find("zzz") is None
+    assert local.find("zzz") == Track("Here Comes the Sun", "The Beatles")
+
+
+def test_local_requires_tracks():
+    with pytest.raises(ValueError):
+        LocalMusicProvider(())
 
 
 def test_cache_hits_until_ttl_expires():
@@ -63,12 +69,17 @@ def test_cache_hits_until_ttl_expires():
     assert inner.calls == ["q", "q"]
 
 
-def test_cache_does_not_store_misses():
+def test_cache_stores_misses_but_not_failures():
     inner = FakeMusic(None)
     cached = CachedMusicProvider(inner)
-    cached.find("q")
-    cached.find("q")
-    assert inner.calls == ["q", "q"]
+    assert cached.find("q") is cached.find("q") is None
+    assert inner.calls == ["q"]
+    down = FakeMusic(error=OSError("down"))
+    cached = CachedMusicProvider(down)
+    for _ in range(2):
+        with pytest.raises(OSError):
+            cached.find("q")
+    assert down.calls == ["q", "q"]
 
 
 def test_rate_limit_blocks_beyond_quota_then_releases():
@@ -76,7 +87,8 @@ def test_rate_limit_blocks_beyond_quota_then_releases():
     now = [0.0]
     limited = RateLimitedMusicProvider(inner, max_calls=2, period=60, clock=lambda: now[0])
     assert limited.find("q1") == limited.find("q2") == Track("a", "b")
-    assert limited.find("q3") is None  # quota atteint : pas d'appel, la chaîne passera au suivant
+    with pytest.raises(RuntimeError):  # quota atteint : pas d'appel, la chaîne passera au suivant
+        limited.find("q3")
     assert inner.calls == ["q1", "q2"]
     now[0] = 61
     assert limited.find("q4") == Track("a", "b")

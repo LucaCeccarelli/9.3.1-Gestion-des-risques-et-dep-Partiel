@@ -47,5 +47,5 @@ def test_all_channels_down_still_wakes_up_via_console(capsys):
         "/wake-up", json={"user_id": "alice", "day": "LUNDI", "weather": "SOLEIL"}
     )
     assert r.status_code == 200
-    assert r.json()["channel"] == "EMAIL" and r.json()["delivered_via"] == "CONSOLE"
+    assert r.json()["channel"] == "EMAIL" and r.json()["delivered_via"] == "FALLBACK"
     assert "[CONSOLE] alice" in capsys.readouterr().out

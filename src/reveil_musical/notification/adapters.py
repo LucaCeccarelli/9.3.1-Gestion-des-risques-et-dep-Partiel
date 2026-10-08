@@ -10,7 +10,7 @@ class EmailNotifier:
 
     def send(self, message: WakeUpMessage) -> Channel:
         self._email.send_mail(
-            to=f"{message.user_id}@reveil-musical.local",
+            to=message.contacts[Channel.EMAIL],
             subject=f"Réveil musical — {message.day.value.capitalize()}",
             body=message.text,
         )
@@ -22,9 +22,8 @@ class SmsNotifier:
         self._sms = sms
 
     def send(self, message: WakeUpMessage) -> Channel:
-        text = message.text[:160]
-        if not self._sms.push_sms(f"+33-{message.user_id}", text):
-            raise RuntimeError("SMS refusé")
+        if not self._sms.push_sms(message.contacts[Channel.SMS], message.text):
+            raise RuntimeError("SMS refusé (texte trop long ?)")
         return Channel.SMS
 
 
@@ -34,7 +33,7 @@ class PushNotifier:
 
     def send(self, message: WakeUpMessage) -> Channel:
         result = self._push.notify(
-            f"device-{message.user_id}",
+            message.contacts[Channel.PUSH],
             {"title": "Réveil musical", "body": message.text},
         )
         if result.get("status") != "queued":

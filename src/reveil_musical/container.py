@@ -24,7 +24,7 @@ from reveil_musical.notification.router import ChannelRouter, ConsoleNotifier
 from reveil_musical.users import DEMO_USERS, InMemoryUserPreferences
 from reveil_musical.wake_up import WakeUpService
 
-USER_AGENT = "ReveilMusical/0.1 (contact@reveil-musical.local)"
+USER_AGENT = "ReveilMusical/0.1 (luca.ceccarelli@etu.mines-ales.fr)"
 
 
 class Container(containers.DeclarativeContainer):

@@ -20,22 +20,21 @@ class CachedMusicProvider:
         self._inner = inner
         self._ttl = ttl_seconds
         self._clock = clock
-        self._cache: dict[str, tuple[float, Track]] = {}
+        self._cache: dict[str, tuple[float, Track | None]] = {}
 
     def find(self, query: str) -> Track | None:
         now = self._clock()
         hit = self._cache.get(query)
         if hit and hit[0] > now:
             return hit[1]
-        track = self._inner.find(query)
-        if track is not None:
-            self._cache[query] = (now + self._ttl, track)
+        track = self._inner.find(query)  # une panne lève et n'est pas mémorisée
+        self._cache[query] = (now + self._ttl, track)  # un titre inconnu l'est aussi
         return track
 
 
 class RateLimitedMusicProvider:
-    """Au plus `max_calls` appels par `period` secondes (fenêtre glissante) ; au-delà, None
-    sans appeler le fournisseur, la chaîne passe au suivant. Protège un quota d'API."""
+    """Au plus `max_calls` appels par `period` secondes (fenêtre glissante) ; au-delà, lève
+    sans appeler le fournisseur : indisponible, la chaîne passe au suivant. Protège un quota d'API."""
 
     def __init__(
         self,
@@ -55,8 +54,7 @@ class RateLimitedMusicProvider:
         while self._calls and self._calls[0] <= now - self._period:
             self._calls.popleft()
         if len(self._calls) >= self._max_calls:
-            log.warning("quota %s atteint, fournisseur ignoré", type(self._inner).__name__)
-            return None
+            raise RuntimeError(f"quota {type(self._inner).__name__} atteint")
         self._calls.append(now)
         return self._inner.find(query)
 
@@ -73,8 +71,8 @@ class FallbackChainMusicProvider:
         for provider in self._providers:
             try:
                 track = provider.find(query)
-            except Exception:  # noqa: BLE001 — toute panne => fournisseur suivant
-                log.warning("fournisseur %s en panne", type(provider).__name__, exc_info=True)
+            except Exception as exc:  # noqa: BLE001 — panne ou quota => fournisseur suivant
+                log.warning("fournisseur %s indisponible : %s", type(provider).__name__, exc)
                 continue
             if track is not None:
                 return track
