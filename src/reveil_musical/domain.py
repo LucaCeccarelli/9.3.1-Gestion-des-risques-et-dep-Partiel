@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Mapping, Protocol
+from typing import Mapping, Protocol, Sequence
 
 
 class Weather(StrEnum):
@@ -37,14 +37,15 @@ class Track:
 @dataclass(frozen=True)
 class UserPreferences:
     user_id: str
-    tracks_by_weather: Mapping[Weather, str]  # météo -> morceau souhaité (requête)
-    fallback_track: str  # morceau de secours pour les cas non couverts
+    tracks_by_weather: Mapping[Weather, Sequence[str]]  # météo -> morceaux souhaités
+    fallback_tracks: Sequence[str]  # morceaux de secours pour les cas non couverts
     channel: Channel
-    tracks_by_day: Mapping[Day, str] = field(default_factory=dict)  # jour -> morceau, prioritaire
+    tracks_by_day: Mapping[Day, Sequence[str]] = field(default_factory=dict)  # jour -> morceaux
 
-    def track_for(self, day: Day, weather: Weather) -> str:
-        """Choix du morceau : jour précis, sinon météo, sinon secours."""
-        return self.tracks_by_day.get(day) or self.tracks_by_weather.get(weather) or self.fallback_track
+    def candidates(self, day: Day, weather: Weather) -> list[str]:
+        """Morceaux possibles : ceux du jour et ceux de la météo réunis, sinon les secours."""
+        pool = [*self.tracks_by_day.get(day, ()), *self.tracks_by_weather.get(weather, ())]
+        return list(dict.fromkeys(pool or self.fallback_tracks))
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,12 @@ class WakeUpMessage:
 
 class UserPreferencesProvider(Protocol):
     def get(self, user_id: str) -> UserPreferences: ...
+
+
+class TrackPicker(Protocol):
+    def choice(self, options: Sequence[str]) -> str:
+        """Choisit un morceau parmi les candidats (random.Random convient)."""
+        ...
 
 
 class MusicProvider(Protocol):

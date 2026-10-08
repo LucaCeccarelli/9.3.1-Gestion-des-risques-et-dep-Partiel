@@ -24,6 +24,11 @@ class FakeNotifier:
         self.sent.append(message)
 
 
+class FirstPicker:
+    def choice(self, options):
+        return options[0]
+
+
 class FakeHttp:
     def __init__(self, payload=None, error=None):
         self.payload, self.error, self.requests = payload, error, []
@@ -39,8 +44,9 @@ class FakeHttp:
 def prefs():
     return UserPreferences(
         user_id="u1",
-        tracks_by_weather={Weather.SOLEIL: "Here Comes the Sun"},
-        fallback_track="Lovely Day",
+        tracks_by_weather={Weather.SOLEIL: ["Here Comes the Sun", "Walking on Sunshine"]},
+        tracks_by_day={Day.DIMANCHE: ["Lazy Sunday"]},
+        fallback_tracks=["Lovely Day"],
         channel=Channel.SMS,
     )
 

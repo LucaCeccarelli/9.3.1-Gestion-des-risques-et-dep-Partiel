@@ -26,9 +26,11 @@ curl -X POST localhost:8000/wake-up -H 'content-type: application/json' \
 ```
 
 Jours : `LUNDI … DIMANCHE`. Météo : `SOLEIL / PLUIE / NEIGE / NUAGEUX` (fournis en entrée,
-aucun appel météo). Choix du morceau, dans l'ordre : morceau fixé pour ce jour, sinon morceau
-fixé pour cette météo, sinon morceau de secours. Réponses : `404` utilisateur inconnu, `422` entrée invalide, `503` si tous
-les canaux sont en panne. Utilisateurs de démo : `alice` (email, « Lazy Sunday » le dimanche), `bob` (SMS, « Manic Monday » le lundi), `carol` (push).
+aucun appel météo). Choix du morceau : l'utilisateur liste plusieurs morceaux par jour et par météo ;
+le réveil tire au sort parmi la réunion des deux listes (un lundi de neige, les morceaux du
+lundi et ceux de la neige sont tous candidats). Si aucune des deux listes ne couvre le cas,
+tirage parmi les morceaux de secours. Réponses : `404` utilisateur inconnu, `422` entrée invalide, `503` si tous
+les canaux sont en panne. Utilisateurs de démo : `alice` (email), `bob` (SMS), `carol` (push) — voir `users.py`.
 
 ## Architecture
 
@@ -76,7 +78,7 @@ dans la limite.
 | Pattern | Où | Pourquoi |
 |---|---|---|
 | Adapter | `notification/adapters.py`, `music/itunes.py`, `music/musicbrainz.py` | ramener des interfaces hétérogènes (mocks, JSON des APIs) vers les ports métier |
-| Strategy | ports `MusicProvider` / `Notifier` injectés dans `WakeUpService` | changer de fournisseur ou de canal sans toucher au métier |
+| Strategy | ports `MusicProvider` / `Notifier` / `TrackPicker` injectés dans `WakeUpService` | changer de fournisseur, de canal ou de règle de tirage sans toucher au métier |
 | Decorator | `CachedMusicProvider` | ajouter le cache (rate-limit) à n'importe quel fournisseur |
 | Chain of Responsibility | `FallbackChainMusicProvider`, `ChannelRouter` | passer au suivant en cas de panne : jamais de silence |
 | Facade | `WakeUpService` | un seul point d'entrée pour le déclencheur |

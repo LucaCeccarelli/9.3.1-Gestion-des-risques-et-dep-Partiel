@@ -4,6 +4,8 @@ Seul endroit où les implémentations concrètes sont assemblées. Les tests rem
 fournisseur avec `container.<provider>.override(...)`.
 """
 
+import random
+
 from dependency_injector import containers, providers
 
 from reveil_musical.domain import Channel
@@ -45,5 +47,8 @@ class Container(containers.DeclarativeContainer):
     )
 
     users = providers.Singleton(InMemoryUserPreferences, DEMO_USERS)
+    picker = providers.Singleton(random.Random)
 
-    wake_up_service = providers.Singleton(WakeUpService, users=users, music=music, notifier=notifier)
+    wake_up_service = providers.Singleton(
+        WakeUpService, users=users, music=music, notifier=notifier, picker=picker
+    )

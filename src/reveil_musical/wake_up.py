@@ -4,6 +4,7 @@ from reveil_musical.domain import (
     Day,
     MusicProvider,
     Notifier,
+    TrackPicker,
     UserPreferencesProvider,
     WakeUpMessage,
     Weather,
@@ -16,14 +17,16 @@ class WakeUpService:
         users: UserPreferencesProvider,
         music: MusicProvider,
         notifier: Notifier,
+        picker: TrackPicker,
     ) -> None:
         self._users = users
         self._music = music
         self._notifier = notifier
+        self._picker = picker
 
     def wake_up(self, user_id: str, day: Day, weather: Weather) -> WakeUpMessage:
         prefs = self._users.get(user_id)
-        query = prefs.track_for(day, weather)
+        query = self._picker.choice(prefs.candidates(day, weather))
         track = self._music.find(query)
         if track is None:  # le fournisseur injecté doit garantir un morceau
             raise RuntimeError(f"Aucun morceau trouvé pour « {query} »")

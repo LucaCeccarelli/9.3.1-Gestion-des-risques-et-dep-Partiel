@@ -1,12 +1,13 @@
 from reveil_musical.container import Container
 from reveil_musical.domain import Day, Weather
-from tests.conftest import FakeHttp
+from tests.conftest import FakeHttp, FirstPicker
 
 
 def test_container_builds_working_service(capsys):
     container = Container()
     container.http.override(FakeHttp(error=ConnectionError("offline")))
-    msg = container.wake_up_service().wake_up("alice", Day.LUNDI, Weather.SOLEIL)
+    container.picker.override(FirstPicker())
+    msg = container.wake_up_service().wake_up("alice", Day.MARDI, Weather.SOLEIL)
     assert msg.track.title == "Here Comes the Sun"  # fallback local
     assert "[EMAIL]" in capsys.readouterr().out
 

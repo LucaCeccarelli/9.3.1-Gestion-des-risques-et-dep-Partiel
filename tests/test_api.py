@@ -4,19 +4,20 @@ from reveil_musical.api import create_app
 from reveil_musical.container import Container
 from reveil_musical.domain import Channel
 from reveil_musical.notification.router import ChannelRouter
-from tests.conftest import FakeHttp, FakeNotifier
+from tests.conftest import FakeHttp, FakeNotifier, FirstPicker
 
 
 def client(http=None, **overrides):
     container = Container()
     container.http.override(http or FakeHttp(error=ConnectionError("offline")))
+    container.picker.override(FirstPicker())
     for name, value in overrides.items():
         getattr(container, name).override(value)
     return TestClient(create_app(container))
 
 
 def test_wake_up_endpoint_degrades_to_local_track(capsys):
-    r = client().post("/wake-up", json={"user_id": "alice", "day": "LUNDI", "weather": "SOLEIL"})
+    r = client().post("/wake-up", json={"user_id": "alice", "day": "MARDI", "weather": "SOLEIL"})
     assert r.status_code == 200
     body = r.json()
     assert body["track_title"] == "Here Comes the Sun" and body["channel"] == "EMAIL"
