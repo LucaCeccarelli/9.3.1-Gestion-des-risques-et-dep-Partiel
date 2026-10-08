@@ -6,15 +6,28 @@ météo, puis le prévient sur son canal préféré (email, SMS ou push — simu
 ## Lancer
 
 ```bash
-uv sync                                   # crée l'environnement (Python ≥ 3.12)
-uv run reveil-musical alice LUNDI PLUIE   # <user_id> <jour> <météo>
-uv run pytest                             # tests + couverture
+uv sync                 # crée l'environnement (Python ≥ 3.12)
+uv run reveil-musical   # démarre l'API sur http://127.0.0.1:8000 (doc interactive : /docs)
+uv run pytest           # tests + couverture
 ```
 
-Jours : `LUNDI … DIMANCHE`. Météo : `SOLEIL / PLUIE / NEIGE / NUAGEUX`.
-Utilisateurs de démo : `alice` (email), `bob` (SMS), `carol` (push).
+Le point d'entrée est `POST /wake-up`, l'appel que l'ordonnanceur (externe, non codé) exécute à
+l'heure du réveil :
 
-L'ordonnancement n'est pas codé : la commande est l'appel exécuté « à la bonne heure ».
+```bash
+curl -X POST localhost:8000/wake-up -H 'content-type: application/json' \
+     -d '{"user_id": "alice", "day": "LUNDI", "weather": "PLUIE"}'
+```
+
+```json
+{"user_id": "alice", "channel": "EMAIL", "day": "LUNDI", "weather": "PLUIE",
+ "track_title": "Riders on the Storm", "track_artist": "The Doors",
+ "text": "Bonjour, c'est lundi et il fait pluie : réveil avec « Riders on the Storm » de The Doors."}
+```
+
+Jours : `LUNDI … DIMANCHE`. Météo : `SOLEIL / PLUIE / NEIGE / NUAGEUX` (fournis en entrée,
+aucun appel météo). Réponses : `404` utilisateur inconnu, `422` entrée invalide, `503` si tous
+les canaux sont en panne. Utilisateurs de démo : `alice` (email), `bob` (SMS), `carol` (push).
 
 ## Architecture
 
@@ -34,7 +47,7 @@ src/reveil_musical/
 │   ├── adapters.py      ramènent chaque mock vers le port Notifier
 │   └── router.py        ChannelRouter : canal préféré, sinon bascule sur un autre (mode dégradé)
 ├── container.py         conteneur DI (dependency-injector) : seul endroit où le concret est assemblé
-└── cli.py               point d'entrée
+└── api.py               point d'entrée HTTP (FastAPI) : POST /wake-up
 ```
 
 Traduction des quatre exigences :
@@ -43,14 +56,15 @@ Traduction des quatre exigences :
 |---|---|
 | Changer de fournisseur musical | `MusicProvider` est un port ; iTunes, MusicBrainz et le fallback local sont interchangeables. `trackViewUrl` et `artist-credit` ne sortent pas de leur adaptateur : le métier ne voit que `Track(title, artist)`. |
 | Ajouter un canal (WhatsApp, vocal…) | Un adaptateur `Notifier` + une entrée dans le `ChannelRouter` du conteneur. Rien d'autre ne change. |
-| Vérification des dépendances | Tableau ci-dessous. Une seule dépendance runtime (`dependency-injector`, BSD) ; HTTP via `urllib` (stdlib). |
+| Vérification des dépendances | Tableau ci-dessous, régénérable avec `uv run python scripts/audit_deps.py`. HTTP sortant via `urllib` (stdlib), pas de SDK tiers. |
 | Jamais de silence | Chaîne de fournisseurs avec fallback local en fin de chaîne ; routeur de canaux qui bascule sur un autre canal si le préféré est en panne. Une panne est journalisée (`WARNING`), jamais bloquante. |
 
 Isolation / DI : `WakeUpService` ne reçoit que des ports via son constructeur. Aucune classe
 métier n'instancie d'implémentation concrète ; l'assemblage est déclaré dans `container.py`
 (`Container`, un `DeclarativeContainer` de `dependency-injector`). Chaque fournisseur, canal
 ou client HTTP est un `provider` remplaçable par `container.<nom>.override(...)` — c'est ce que
-font les tests, et ce que ferait un changement de fournisseur en production.
+font les tests, et ce que ferait un changement de fournisseur en production. L'API reçoit le
+service par `Depends`, elle ne connaît pas non plus les implémentations.
 
 Rate-limit iTunes (~20 req/min) : `CachedMusicProvider` mémorise chaque requête réussie 1 h.
 Un réveil par utilisateur et par jour, avec des morceaux fixes par météo, tient donc largement
@@ -72,31 +86,59 @@ métier ne voient que des ports ; le conteneur est le seul à connaître les imp
 
 ## Dépendances : licence, version, fraîcheur
 
-Audit du 2026-10-08.
+Audit du 2026-10-08 (`uv run python scripts/audit_deps.py`). Outils : uv 0.12.5
+(MIT OR Apache-2.0), Python 3.12.12 (PSF-2.0).
 
-Production :
+Production (déclarées : `dependency-injector`, `fastapi`, `uvicorn` ; le reste est transitif) :
 
-| Package | Rôle | Licence | Installée | Dernière stable (PyPI) | Remarque |
+| Package | Rôle | Licence | Installée | Dernière stable (PyPI) | État |
 |---|---|---|---|---|---|
-| dependency-injector | conteneur IoC | BSD-3-Clause | 4.49.1 | 4.49.1 | à jour ; extensions Cython compilées, wheels fournis pour Linux/macOS/Windows |
-| typing-extensions | (via dependency-injector, Python < 3.13) | PSF-2.0 | 4.16.0 | 4.16.0 | à jour ; disparaît en passant à Python 3.13 |
+| dependency-injector | conteneur IoC | BSD-3-Clause | 4.49.1 | 4.49.1 | à jour |
+| fastapi | API HTTP | MIT | 0.142.4 | 0.142.4 | à jour |
+| uvicorn | serveur ASGI | BSD-3-Clause | 0.54.0 | 0.54.0 | à jour |
+| starlette | via fastapi | BSD-3-Clause | 1.7.0 | 1.7.0 | à jour |
+| pydantic | via fastapi (validation) | MIT | 2.13.5 | 2.13.5 | à jour |
+| pydantic-core | via pydantic | MIT | 2.46.5 | 2.49.0 | **en retard — justifié ci-dessous** |
+| annotated-types | via pydantic | MIT | 0.8.0 | 0.8.0 | à jour |
+| typing-inspection | via pydantic | MIT | 0.4.4 | 0.4.4 | à jour |
+| annotated-doc | via fastapi | MIT | 0.0.5 | 0.0.5 | à jour |
+| opentelemetry-api | via fastapi | Apache-2.0 | 1.45.1 | 1.45.1 | à jour |
+| anyio | via starlette | MIT | 4.15.1 | 4.15.1 | à jour |
+| idna | via anyio | BSD-3-Clause | 3.20 | 3.20 | à jour |
+| click | via uvicorn | BSD-3-Clause | 8.5.0 | 8.5.0 | à jour |
+| h11 | via uvicorn | MIT | 0.16.0 | 0.16.0 | à jour |
+| typing-extensions | via dependency-injector (Python < 3.13) | PSF-2.0 | 4.16.0 | 4.16.0 | à jour |
 
-Développement :
+Développement uniquement (non livrées en production) :
 
-| Package | Rôle | Licence | Installée | Dernière stable (PyPI) | Remarque |
+| Package | Rôle | Licence | Installée | Dernière stable (PyPI) | État |
 |---|---|---|---|---|---|
 | pytest | tests | MIT | 9.1.1 | 9.1.1 | à jour |
 | pytest-cov | couverture | MIT | 7.1.0 | 7.1.0 | à jour |
-| coverage | (via pytest-cov) | Apache-2.0 | 7.16.2 | 7.16.2 | à jour |
-| pluggy | (via pytest) | MIT | 1.6.0 | 1.6.0 | à jour |
-| iniconfig | (via pytest) | MIT | 2.3.1 | 2.3.1 | à jour |
-| packaging | (via pytest) | Apache-2.0 OR BSD-2-Clause | 26.3 | 26.3 | à jour |
-| Pygments | (via pytest) | BSD-2-Clause | 2.21.0 | 2.21.0 | à jour |
+| coverage | via pytest-cov | Apache-2.0 | 7.16.2 | 7.16.2 | à jour |
+| pluggy | via pytest | MIT | 1.6.0 | 1.6.0 | à jour |
+| iniconfig | via pytest | MIT | 2.3.1 | 2.3.1 | à jour |
+| packaging | via pytest | Apache-2.0 OR BSD-2-Clause | 26.3 | 26.3 | à jour |
+| Pygments | via pytest | BSD-2-Clause | 2.21.0 | 2.21.0 | à jour |
+| httpx | client de test FastAPI | BSD-3-Clause | 0.28.1 | 0.28.1 | à jour |
+| httpcore | via httpx | BSD-3-Clause | 1.0.9 | 1.0.9 | à jour |
+| certifi | via httpx | **MPL-2.0 — justifié ci-dessous** | 2026.7.22 | 2026.7.22 | à jour |
 
-Outils : uv 0.12.5 (MIT OR Apache-2.0), Python 3.12.12 (PSF-2.0).
+Composants posant question :
 
-Aucun composant copyleft, aucune version ancienne. Toutes les licences sont permissives et
-compatibles avec un usage commercial.
+- **pydantic-core 2.46.5 (dernière : 2.49.0)** — pydantic épingle sa version de `pydantic-core`
+  à l'exact (`==`) ; on ne peut pas la monter seule. Elle suivra la prochaine release de
+  pydantic. Pas d'avis de sécurité connu sur 2.46.x.
+- **certifi, MPL-2.0** — copyleft faible, à l'échelle du fichier : il n'impose des obligations
+  que si l'on modifie et redistribue les fichiers de certifi eux-mêmes, ce que nous ne faisons
+  pas. De plus il n'est tiré que par `httpx`, dépendance de développement (client de test).
+  Aucun impact sur le produit livré.
+- **dependency-injector** — extensions Cython compilées ; des wheels sont fournis pour
+  Linux / macOS / Windows, pas de chaîne de compilation nécessaire.
+- **opentelemetry-api** — tirée par fastapi ≥ 0.140 pour son module de télémétrie ; inactif
+  tant qu'aucun SDK OpenTelemetry n'est installé. Apache-2.0, à jour.
+
+Aucune licence copyleft forte (GPL/AGPL). Toutes compatibles avec un usage commercial.
 
 Services externes (pas de SDK, appelés en HTTP via la stdlib) :
 
@@ -105,9 +147,8 @@ Services externes (pas de SDK, appelés en HTTP via la stdlib) :
 | iTunes Search API | aucune | ~20 req/min | cache 1 h par requête |
 | MusicBrainz WS/2 | aucune | `User-Agent` identifiable obligatoire, 1 req/s | en-tête `ReveilMusical/0.1 (contact@…)` ; second de la chaîne, donc rarement sollicité |
 
-Pour refaire l'audit : `uv tree` puis comparer avec `https://pypi.org/pypi/<package>/json`.
-
 ## Tests
 
-`uv run pytest` : 29 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
-réseau réel (`urllib`) et une branche de refus du mock SMS, volontairement hors tests unitaires.
+`uv run pytest` : 32 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
+réseau réel (`urllib`), le lancement d'uvicorn et une branche de refus du mock SMS,
+volontairement hors tests unitaires.
