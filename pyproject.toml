@@ -1,0 +1,27 @@
+[project]
+name = "reveil-musical"
+version = "0.1.0"
+description = "Réveil musical : un morceau selon le jour et la météo, notifié sur le canal préféré."
+readme = "README.md"
+authors = [
+    { name = "Luca Ceccarelli", email = "lucabuco03@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+reveil-musical = "reveil_musical.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=reveil_musical --cov-report=term-missing"
