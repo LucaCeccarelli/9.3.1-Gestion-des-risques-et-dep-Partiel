@@ -56,7 +56,7 @@ Traduction des quatre exigences :
 |---|---|
 | Changer de fournisseur musical | `MusicProvider` est un port ; iTunes, MusicBrainz et le fallback local sont interchangeables. `trackViewUrl` et `artist-credit` ne sortent pas de leur adaptateur : le métier ne voit que `Track(title, artist)`. |
 | Ajouter un canal (WhatsApp, vocal…) | Un adaptateur `Notifier` + une entrée dans le `ChannelRouter` du conteneur. Rien d'autre ne change. |
-| Vérification des dépendances | Tableau ci-dessous, régénérable avec `uv run python scripts/audit_deps.py`. HTTP sortant via `urllib` (stdlib), pas de SDK tiers. |
+| Vérification des dépendances | Tableau ci-dessous, régénérable avec `uv tree --outdated` et `uvx pip-licenses`. HTTP sortant via `urllib` (stdlib), pas de SDK tiers. |
 | Jamais de silence | Chaîne de fournisseurs avec fallback local en fin de chaîne ; routeur de canaux qui bascule sur un autre canal si le préféré est en panne. Une panne est journalisée (`WARNING`), jamais bloquante. |
 
 Isolation / DI : `WakeUpService` ne reçoit que des ports via son constructeur. Aucune classe
@@ -86,8 +86,14 @@ métier ne voient que des ports ; le conteneur est le seul à connaître les imp
 
 ## Dépendances : licence, version, fraîcheur
 
-Audit du 2026-10-08 (`uv run python scripts/audit_deps.py`). Outils : uv 0.12.5
-(MIT OR Apache-2.0), Python 3.12.12 (PSF-2.0).
+Audit du 2026-10-08. Outils : uv 0.12.5 (MIT OR Apache-2.0), Python 3.12.12 (PSF-2.0).
+
+Pour refaire l'audit :
+
+```bash
+uv tree --outdated                                        # arbre, versions installées, dernière stable
+uvx pip-licenses --python .venv/bin/python --format=markdown  # licence de chaque package installé
+```
 
 Production (déclarées : `dependency-injector`, `fastapi`, `uvicorn` ; le reste est transitif) :
 
