@@ -1,6 +1,6 @@
 """Mock du service interne de préférences utilisateur."""
 
-from reveil_musical.domain import Channel, UserPreferences, Weather
+from reveil_musical.domain import Channel, Day, UserPreferences, Weather
 
 
 class UnknownUser(LookupError):
@@ -27,12 +27,14 @@ DEMO_USERS = {
         },
         fallback_track="Lovely Day",
         channel=Channel.EMAIL,
+        tracks_by_day={Day.DIMANCHE: "Lazy Sunday"},
     ),
     "bob": UserPreferences(
         user_id="bob",
         tracks_by_weather={Weather.NEIGE: "Let It Snow"},
         fallback_track="Wake Me Up",
         channel=Channel.SMS,
+        tracks_by_day={Day.LUNDI: "Manic Monday"},
     ),
     "carol": UserPreferences(
         user_id="carol",

@@ -1,6 +1,6 @@
 """Modèle métier et ports (interfaces). Aucun détail technique ici."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Mapping, Protocol
 
@@ -38,8 +38,13 @@ class Track:
 class UserPreferences:
     user_id: str
     tracks_by_weather: Mapping[Weather, str]  # météo -> morceau souhaité (requête)
-    fallback_track: str  # morceau de secours pour les météos non couvertes
+    fallback_track: str  # morceau de secours pour les cas non couverts
     channel: Channel
+    tracks_by_day: Mapping[Day, str] = field(default_factory=dict)  # jour -> morceau, prioritaire
+
+    def track_for(self, day: Day, weather: Weather) -> str:
+        """Choix du morceau : jour précis, sinon météo, sinon secours."""
+        return self.tracks_by_day.get(day) or self.tracks_by_weather.get(weather) or self.fallback_track
 
 
 @dataclass(frozen=True)

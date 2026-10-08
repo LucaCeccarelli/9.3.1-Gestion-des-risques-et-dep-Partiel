@@ -26,8 +26,9 @@ curl -X POST localhost:8000/wake-up -H 'content-type: application/json' \
 ```
 
 Jours : `LUNDI … DIMANCHE`. Météo : `SOLEIL / PLUIE / NEIGE / NUAGEUX` (fournis en entrée,
-aucun appel météo). Réponses : `404` utilisateur inconnu, `422` entrée invalide, `503` si tous
-les canaux sont en panne. Utilisateurs de démo : `alice` (email), `bob` (SMS), `carol` (push).
+aucun appel météo). Choix du morceau, dans l'ordre : morceau fixé pour ce jour, sinon morceau
+fixé pour cette météo, sinon morceau de secours. Réponses : `404` utilisateur inconnu, `422` entrée invalide, `503` si tous
+les canaux sont en panne. Utilisateurs de démo : `alice` (email, « Lazy Sunday » le dimanche), `bob` (SMS, « Manic Monday » le lundi), `carol` (push).
 
 ## Architecture
 
@@ -155,6 +156,6 @@ Services externes (pas de SDK, appelés en HTTP via la stdlib) :
 
 ## Tests
 
-`uv run pytest` : 32 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
+`uv run pytest` : 34 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
 réseau réel (`urllib`), le lancement d'uvicorn et une branche de refus du mock SMS,
 volontairement hors tests unitaires.

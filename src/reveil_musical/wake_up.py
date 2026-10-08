@@ -23,7 +23,7 @@ class WakeUpService:
 
     def wake_up(self, user_id: str, day: Day, weather: Weather) -> WakeUpMessage:
         prefs = self._users.get(user_id)
-        query = prefs.tracks_by_weather.get(weather, prefs.fallback_track)
+        query = prefs.track_for(day, weather)
         track = self._music.find(query)
         if track is None:  # le fournisseur injecté doit garantir un morceau
             raise RuntimeError(f"Aucun morceau trouvé pour « {query} »")
