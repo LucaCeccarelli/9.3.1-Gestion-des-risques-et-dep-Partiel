@@ -3,7 +3,7 @@ import pytest
 from reveil_musical.domain import Channel
 from reveil_musical.notification.adapters import EmailNotifier, PushNotifier, SmsNotifier
 from reveil_musical.notification.mocks import EmailMock, PushMock, SmsMock
-from reveil_musical.notification.router import AllChannelsFailed, ChannelRouter
+from reveil_musical.notification.router import ChannelRouter, ConsoleNotifier
 from tests.conftest import FakeNotifier
 
 
@@ -43,28 +43,35 @@ def test_push_adapter_raises_when_not_queued(message):
 
 def test_router_uses_preferred_channel(message):
     sms, email = FakeNotifier(), FakeNotifier()
-    ChannelRouter({Channel.EMAIL: email, Channel.SMS: sms}).send(message)
+    ChannelRouter({Channel.EMAIL: email, Channel.SMS: sms}, FakeNotifier()).send(message)
     assert sms.sent == [message] and email.sent == []
 
 
 def test_router_degrades_to_other_channel(message, caplog):
     sms, email = FakeNotifier(error=TimeoutError("down")), FakeNotifier()
-    ChannelRouter({Channel.EMAIL: email, Channel.SMS: sms}).send(message)
+    ChannelRouter({Channel.EMAIL: email, Channel.SMS: sms}, FakeNotifier()).send(message)
     assert email.sent == [message]
     assert "mode dégradé" in caplog.text
 
 
-def test_router_raises_when_all_down(message):
-    with pytest.raises(AllChannelsFailed):
-        ChannelRouter({Channel.SMS: FakeNotifier(error=OSError("x"))}).send(message)
+def test_router_falls_back_to_last_resort_when_all_down(message, caplog):
+    last = FakeNotifier()
+    ChannelRouter({Channel.SMS: FakeNotifier(error=OSError("x"))}, last).send(message)
+    assert last.sent == [message]
+    assert "dernier recours" in caplog.text
+
+
+def test_console_notifier_prints(message, capsys):
+    ConsoleNotifier().send(message)
+    assert message.text in capsys.readouterr().out
 
 
 def test_router_without_preferred_channel_configured(message):
     email = FakeNotifier()
-    ChannelRouter({Channel.EMAIL: email}).send(message)  # préférence SMS absente
+    ChannelRouter({Channel.EMAIL: email}, FakeNotifier()).send(message)  # préférence SMS absente
     assert email.sent == [message]
 
 
 def test_router_requires_channels():
     with pytest.raises(ValueError):
-        ChannelRouter({})
+        ChannelRouter({}, FakeNotifier())

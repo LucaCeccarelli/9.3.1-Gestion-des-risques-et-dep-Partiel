@@ -1,4 +1,5 @@
 # Réveil musical
+> CECCARELLI Luca
 
 Service qui réveille un utilisateur avec un morceau choisi selon le jour de la semaine et la
 météo, puis le prévient sur son canal préféré (email, SMS ou push — simulés).
@@ -29,8 +30,18 @@ Jours : `LUNDI … DIMANCHE`. Météo : `SOLEIL / PLUIE / NEIGE / NUAGEUX` (four
 aucun appel météo). Choix du morceau : l'utilisateur liste plusieurs morceaux par jour et par météo ;
 le réveil tire au sort parmi la réunion des deux listes (un lundi de neige, les morceaux du
 lundi et ceux de la neige sont tous candidats). Si aucune des deux listes ne couvre le cas,
-tirage parmi les morceaux de secours. Réponses : `404` utilisateur inconnu, `422` entrée invalide, `503` si tous
-les canaux sont en panne. Utilisateurs de démo : `alice` (email), `bob` (SMS), `carol` (push) — voir `users.py`.
+tirage parmi les morceaux de secours. Réponses : `404` utilisateur inconnu, `422` entrée invalide.
+Une panne de canal ne produit jamais d'erreur : voir « Jamais de silence » ci-dessous.
+Utilisateurs de démo : `alice` (email), `bob` (SMS), `carol` (push) — voir `users.py`.
+
+Extension assumée du sujet : l'énoncé décrit *un* morceau par type de météo et *un* morceau de
+secours. J'ai gardé ce contrat (une liste à un élément s'y ramène) mais l'ai élargi à
+plusieurs morceaux par météo, plusieurs morceaux de secours et une liste par jour de la semaine.
+Le sujet annonce en effet un morceau « choisi selon le jour de la semaine et la météo du jour » :
+sans liste par jour, le jour ne pèserait pas sur le choix, et avec un seul morceau par météo
+l'utilisateur entendrait le même titre chaque matin de pluie. Le tirage au sort dans la réunion
+des deux listes fait varier le réveil sans ajouter de règle d'historique (« jamais le même
+qu'hier ») : le jour et la météo changent, le tirage suffit.
 
 ## Architecture
 
@@ -48,7 +59,7 @@ src/reveil_musical/
 ├── notification/
 │   ├── mocks.py         EmailMock / SmsMock / PushMock, interfaces volontairement différentes
 │   ├── adapters.py      ramènent chaque mock vers le port Notifier
-│   └── router.py        ChannelRouter : canal préféré, sinon bascule sur un autre (mode dégradé)
+│   └── router.py        ChannelRouter : canal préféré, sinon un autre (mode dégradé), sinon la console
 ├── container.py         conteneur DI (dependency-injector) : seul endroit où le concret est assemblé
 └── api.py               point d'entrée HTTP (FastAPI) : POST /wake-up
 ```
@@ -60,7 +71,7 @@ Traduction des quatre exigences :
 | Changer de fournisseur musical | `MusicProvider` est un port ; iTunes, MusicBrainz et le fallback local sont interchangeables. `trackViewUrl` et `artist-credit` ne sortent pas de leur adaptateur : le métier ne voit que `Track(title, artist)`. |
 | Ajouter un canal (WhatsApp, vocal…) | Un adaptateur `Notifier` + une entrée dans le `ChannelRouter` du conteneur. Rien d'autre ne change. |
 | Vérification des dépendances | Tableau ci-dessous, régénérable avec `uv tree --outdated` et `uvx pip-licenses`. HTTP sortant via `urllib` (stdlib), pas de SDK tiers. |
-| Jamais de silence | Chaîne de fournisseurs avec fallback local en fin de chaîne ; routeur de canaux qui bascule sur un autre canal si le préféré est en panne. Une panne est journalisée (`WARNING`), jamais bloquante. |
+| Jamais de silence | Chaîne de fournisseurs avec fallback local en fin de chaîne ; routeur de canaux qui bascule sur un autre canal si le préféré est en panne, et sur `ConsoleNotifier` (dernier recours, ne dépend de rien) si tous le sont. Une panne est journalisée (`WARNING`, `ERROR` pour le dernier recours), jamais bloquante : l'API répond toujours `200`. |
 
 Isolation / DI : `WakeUpService` ne reçoit que des ports via son constructeur. Aucune classe
 métier n'instancie d'implémentation concrète ; l'assemblage est déclaré dans `container.py`
@@ -69,9 +80,13 @@ ou client HTTP est un `provider` remplaçable par `container.<nom>.override(...)
 font les tests, et ce que ferait un changement de fournisseur en production. L'API reçoit le
 service par `Depends`, elle ne connaît pas non plus les implémentations.
 
-Rate-limit iTunes (~20 req/min) : `CachedMusicProvider` mémorise chaque requête réussie 1 h.
-Un réveil par utilisateur et par jour, avec des morceaux fixes par météo, tient donc largement
-dans la limite.
+Rate-limit iTunes (~20 req/min) : le sujet demande de le respecter « côté cache », c'est ce qui
+est fait. `CachedMusicProvider` mémorise chaque requête réussie 1 h : un même titre n'est demandé
+à iTunes qu'une fois par heure, quel que soit le nombre d'utilisateurs qui l'ont choisi. Il n'y a
+pas de limiteur de débit à proprement parler : 20 titres *distincts* jamais vus dans la même
+minute dépasseraient la limite ; iTunes répondrait alors en erreur et la chaîne passerait à
+MusicBrainz puis au local, sans silence. Un limiteur (jeton par minute) s'ajouterait comme un
+second décorateur si la volumétrie l'exigeait.
 
 ## Design patterns
 
@@ -139,7 +154,7 @@ Composants posant question :
   à l'exact (`==`) ; on ne peut pas la monter seule. Elle suivra la prochaine release de
   pydantic. Pas d'avis de sécurité connu sur 2.46.x.
 - **certifi, MPL-2.0** — copyleft faible, à l'échelle du fichier : il n'impose des obligations
-  que si l'on modifie et redistribue les fichiers de certifi eux-mêmes, ce que nous ne faisons
+  que si l'on modifie et redistribue les fichiers de certifi eux-mêmes, ce que je ne fais
   pas. De plus il n'est tiré que par `httpx`, dépendance de développement (client de test).
   Aucun impact sur le produit livré.
 - **dependency-injector** — extensions Cython compilées ; des wheels sont fournis pour
@@ -158,6 +173,6 @@ Services externes (pas de SDK, appelés en HTTP via la stdlib) :
 
 ## Tests
 
-`uv run pytest` : 34 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
+`uv run pytest` : 35 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
 réseau réel (`urllib`), le lancement d'uvicorn et une branche de refus du mock SMS,
 volontairement hors tests unitaires.

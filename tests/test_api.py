@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from reveil_musical.api import create_app
 from reveil_musical.container import Container
 from reveil_musical.domain import Channel
-from reveil_musical.notification.router import ChannelRouter
+from reveil_musical.notification.router import ChannelRouter, ConsoleNotifier
 from tests.conftest import FakeHttp, FakeNotifier, FirstPicker
 
 
@@ -40,9 +40,10 @@ def test_invalid_weather_is_422():
     assert r.status_code == 422
 
 
-def test_all_channels_down_is_503():
-    only_dead_email = ChannelRouter({Channel.EMAIL: FakeNotifier(error=OSError("down"))})
-    r = client(notifier=only_dead_email).post(
+def test_all_channels_down_still_wakes_up_via_console(capsys):
+    dead = ChannelRouter({Channel.EMAIL: FakeNotifier(error=OSError("down"))}, ConsoleNotifier())
+    r = client(notifier=dead).post(
         "/wake-up", json={"user_id": "alice", "day": "LUNDI", "weather": "SOLEIL"}
     )
-    assert r.status_code == 503
+    assert r.status_code == 200
+    assert "[CONSOLE] alice" in capsys.readouterr().out

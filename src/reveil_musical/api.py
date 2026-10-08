@@ -8,7 +8,6 @@ from pydantic import BaseModel
 
 from reveil_musical.container import Container
 from reveil_musical.domain import Channel, Day, Weather
-from reveil_musical.notification.router import AllChannelsFailed
 from reveil_musical.users import UnknownUser
 from reveil_musical.wake_up import WakeUpService
 
@@ -44,8 +43,6 @@ def create_app(container: Container | None = None) -> FastAPI:
             msg = service.wake_up(request.user_id, request.day, request.weather)
         except UnknownUser:
             raise HTTPException(404, f"utilisateur inconnu : {request.user_id}") from None
-        except AllChannelsFailed as exc:
-            raise HTTPException(503, f"aucun canal disponible : {exc}") from exc
         return WakeUpResponse(
             user_id=msg.user_id,
             channel=msg.channel,

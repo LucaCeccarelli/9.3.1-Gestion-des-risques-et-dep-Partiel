@@ -16,7 +16,7 @@ from reveil_musical.music.musicbrainz import MusicBrainzMusicProvider
 from reveil_musical.music.resilient import CachedMusicProvider, FallbackChainMusicProvider
 from reveil_musical.notification.adapters import EmailNotifier, PushNotifier, SmsNotifier
 from reveil_musical.notification.mocks import EmailMock, PushMock, SmsMock
-from reveil_musical.notification.router import ChannelRouter
+from reveil_musical.notification.router import ChannelRouter, ConsoleNotifier
 from reveil_musical.users import DEMO_USERS, InMemoryUserPreferences
 from reveil_musical.wake_up import WakeUpService
 
@@ -44,6 +44,7 @@ class Container(containers.DeclarativeContainer):
                 Channel.PUSH: providers.Singleton(PushNotifier, providers.Singleton(PushMock)),
             }
         ),
+        last_resort=providers.Singleton(ConsoleNotifier),
     )
 
     users = providers.Singleton(InMemoryUserPreferences, DEMO_USERS)
