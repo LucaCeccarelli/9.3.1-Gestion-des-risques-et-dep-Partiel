@@ -21,6 +21,7 @@ def test_wake_up_endpoint_degrades_to_local_track(capsys):
     assert r.status_code == 200
     body = r.json()
     assert body["track_title"] == "Here Comes the Sun" and body["channel"] == "EMAIL"
+    assert body["delivered_via"] == "EMAIL"
     assert "[EMAIL]" in capsys.readouterr().out
 
 
@@ -46,4 +47,5 @@ def test_all_channels_down_still_wakes_up_via_console(capsys):
         "/wake-up", json={"user_id": "alice", "day": "LUNDI", "weather": "SOLEIL"}
     )
     assert r.status_code == 200
+    assert r.json()["channel"] == "EMAIL" and r.json()["delivered_via"] == "CONSOLE"
     assert "[CONSOLE] alice" in capsys.readouterr().out

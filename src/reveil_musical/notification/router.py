@@ -12,8 +12,9 @@ log = logging.getLogger(__name__)
 class ConsoleNotifier:
     """Dernier recours : ne dépend de rien, ne tombe jamais."""
 
-    def send(self, message: WakeUpMessage) -> None:
+    def send(self, message: WakeUpMessage) -> Channel:
         print(f"[CONSOLE] {message.user_id}: {message.text}")
+        return Channel.CONSOLE
 
 
 class ChannelRouter:
@@ -23,7 +24,7 @@ class ChannelRouter:
         self._notifiers = notifiers
         self._last_resort = last_resort
 
-    def send(self, message: WakeUpMessage) -> None:
+    def send(self, message: WakeUpMessage) -> Channel:
         order = [message.channel] + [c for c in self._notifiers if c != message.channel]
         for channel in order:
             notifier = self._notifiers.get(channel)
@@ -33,8 +34,8 @@ class ChannelRouter:
                 notifier.send(message)
                 if channel != message.channel:
                     log.warning("mode dégradé : %s envoyé via %s", message.user_id, channel)
-                return
+                return channel
             except Exception as exc:  # noqa: BLE001 — panne du canal => suivant
                 log.warning("canal %s en panne : %s", channel, exc)
         log.error("tous les canaux en panne : %s envoyé via le dernier recours", message.user_id)
-        self._last_resort.send(message)
+        return self._last_resort.send(message)

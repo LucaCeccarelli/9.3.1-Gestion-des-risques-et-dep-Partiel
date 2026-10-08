@@ -1,10 +1,6 @@
 """Mock du service interne de préférences utilisateur."""
 
-from reveil_musical.domain import Channel, Day, UserPreferences, Weather
-
-
-class UnknownUser(LookupError):
-    pass
+from reveil_musical.domain import Channel, Day, UnknownUser, UserPreferences, Weather
 
 
 class InMemoryUserPreferences:

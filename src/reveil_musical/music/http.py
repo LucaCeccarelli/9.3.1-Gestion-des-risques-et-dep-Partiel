@@ -1,7 +1,8 @@
 """Client HTTP minimal (stdlib) derrière une interface, pour pouvoir le remplacer en test."""
 
 import json
-from typing import Any, Mapping, Protocol
+from collections.abc import Mapping
+from typing import Any, Protocol
 from urllib.request import Request, urlopen
 
 
@@ -14,6 +15,6 @@ class UrllibHttpClient:
         self._timeout = timeout
 
     def get_json(self, url: str, headers: Mapping[str, str] | None = None) -> Any:
-        request = Request(url, headers=dict(headers or {}))
-        with urlopen(request, timeout=self._timeout) as response:  # noqa: S310 (https only)
+        request = Request(url, headers=dict(headers or {}))  # noqa: S310 — https uniquement
+        with urlopen(request, timeout=self._timeout) as response:  # noqa: S310
             return json.load(response)

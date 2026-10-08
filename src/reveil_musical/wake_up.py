@@ -1,9 +1,12 @@
 """Cas d'usage (Facade) : déclencher le réveil d'un utilisateur. Ne dépend que des ports."""
 
+from dataclasses import replace
+
 from reveil_musical.domain import (
     Day,
     MusicProvider,
     Notifier,
+    Track,
     TrackPicker,
     UserPreferencesProvider,
     WakeUpMessage,
@@ -27,9 +30,7 @@ class WakeUpService:
     def wake_up(self, user_id: str, day: Day, weather: Weather) -> WakeUpMessage:
         prefs = self._users.get(user_id)
         query = self._picker.choice(prefs.candidates(day, weather))
-        track = self._music.find(query)
-        if track is None:  # le fournisseur injecté doit garantir un morceau
-            raise RuntimeError(f"Aucun morceau trouvé pour « {query} »")
+        # Jamais de silence : sans fournisseur, le titre choisi par l'utilisateur suffit.
+        track = self._music.find(query) or Track(query, "artiste inconnu")
         message = WakeUpMessage(user_id, prefs.channel, day, weather, track)
-        self._notifier.send(message)
-        return message
+        return replace(message, delivered_via=self._notifier.send(message))

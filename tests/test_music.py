@@ -7,8 +7,14 @@ from reveil_musical.music.musicbrainz import MusicBrainzMusicProvider
 from reveil_musical.music.resilient import CachedMusicProvider, FallbackChainMusicProvider
 from tests.conftest import FakeHttp, FakeMusic
 
-ITUNES = {"results": [{"trackName": "Here Comes the Sun", "artistName": "The Beatles", "trackViewUrl": "x"}]}
-MB = {"recordings": [{"title": "Lovely Day", "artist-credit": [{"name": "Bill", "joinphrase": " & "}, {"name": "Withers"}]}]}
+ITUNES = {
+    "results": [{"trackName": "Here Comes the Sun", "artistName": "The Beatles", "trackViewUrl": "x"}]
+}
+MB = {
+    "recordings": [
+        {"title": "Lovely Day", "artist-credit": [{"name": "Bill", "joinphrase": " & "}, {"name": "Withers"}]}
+    ]
+}
 
 
 def test_itunes_maps_response_without_leaking_url():
@@ -31,7 +37,8 @@ def test_musicbrainz_sets_user_agent_and_joins_artists():
 
 
 def test_musicbrainz_skips_incomplete():
-    assert MusicBrainzMusicProvider(FakeHttp({"recordings": [{"title": "no artist"}]}), "ua").find("x") is None
+    http = FakeHttp({"recordings": [{"title": "no artist"}]})
+    assert MusicBrainzMusicProvider(http, "ua").find("x") is None
 
 
 def test_local_matches_title_or_picks_deterministically():
@@ -45,7 +52,8 @@ def test_cache_hits_until_ttl_expires():
     inner = FakeMusic(Track("a", "b"))
     now = [0.0]
     cached = CachedMusicProvider(inner, ttl_seconds=10, clock=lambda: now[0])
-    cached.find("q"); cached.find("q")
+    cached.find("q")
+    cached.find("q")
     assert inner.calls == ["q"]
     now[0] = 11
     cached.find("q")
@@ -55,7 +63,8 @@ def test_cache_hits_until_ttl_expires():
 def test_cache_does_not_store_misses():
     inner = FakeMusic(None)
     cached = CachedMusicProvider(inner)
-    cached.find("q"); cached.find("q")
+    cached.find("q")
+    cached.find("q")
     assert inner.calls == ["q", "q"]
 
 

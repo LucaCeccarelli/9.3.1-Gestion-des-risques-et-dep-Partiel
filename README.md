@@ -9,7 +9,8 @@ météo, puis le prévient sur son canal préféré (email, SMS ou push — simu
 ```bash
 uv sync                 # crée l'environnement (Python ≥ 3.12)
 uv run reveil-musical   # démarre l'API sur http://127.0.0.1:8000 (doc interactive : /docs)
-uv run pytest           # tests + couverture
+uv run pytest           # tests + couverture (échec sous 95 %)
+uv run ruff check .     # lint
 ```
 
 Le point d'entrée est `POST /wake-up`, l'appel que l'ordonnanceur (externe, non codé) exécute à
@@ -23,7 +24,7 @@ curl -X POST localhost:8000/wake-up -H 'content-type: application/json' \
 Réponse (tirage au sort parmi les candidats du jour et de la météo, ici l'un des trois possibles) :
 
 ```json
-{"user_id": "alice", "channel": "EMAIL", "day": "LUNDI", "weather": "PLUIE",
+{"user_id": "alice", "channel": "EMAIL", "delivered_via": "EMAIL", "day": "LUNDI", "weather": "PLUIE",
  "track_title": "Riders on the Storm", "track_artist": "The Doors",
  "text": "Bonjour, c'est lundi et il fait pluie : réveil avec « Riders on the Storm » de The Doors."}
 ```
@@ -34,6 +35,8 @@ le réveil tire au sort parmi la réunion des deux listes (un lundi de neige, le
 lundi et ceux de la neige sont tous candidats). Si aucune des deux listes ne couvre le cas,
 tirage parmi les morceaux de secours. Réponses : `404` utilisateur inconnu, `422` entrée invalide.
 Une panne de canal ne produit jamais d'erreur : voir « Jamais de silence » ci-dessous.
+`channel` est le canal préféré, `delivered_via` celui réellement utilisé : s'ils diffèrent,
+l'envoi s'est fait en mode dégradé (`CONSOLE` = dernier recours).
 Utilisateurs de démo : `alice` (email), `bob` (SMS), `carol` (push) — voir `users.py`.
 
 Extension assumée du sujet : l'énoncé décrit *un* morceau par type de météo et *un* morceau de
@@ -73,7 +76,7 @@ Traduction des quatre exigences :
 | Changer de fournisseur musical | `MusicProvider` est un port ; iTunes, MusicBrainz et le fallback local sont interchangeables. `trackViewUrl` et `artist-credit` ne sortent pas de leur adaptateur : le métier ne voit que `Track(title, artist)`. |
 | Ajouter un canal (WhatsApp, vocal…) | Une valeur dans l'enum `Channel`, un adaptateur `Notifier` et une entrée dans le `ChannelRouter` du conteneur. Le métier ne change pas. |
 | Vérification des dépendances | Tableau ci-dessous, régénérable avec `uv tree --outdated` et `uvx pip-licenses`. HTTP sortant via `urllib` (stdlib), pas de SDK tiers. |
-| Jamais de silence | Chaîne de fournisseurs avec fallback local en fin de chaîne ; routeur de canaux qui bascule sur un autre canal si le préféré est en panne, et sur `ConsoleNotifier` (dernier recours, ne dépend de rien) si tous le sont. Une panne est journalisée (`WARNING`, `ERROR` pour le dernier recours), jamais bloquante : l'API répond toujours `200`. |
+| Jamais de silence | Chaîne de fournisseurs avec fallback local en fin de chaîne ; routeur de canaux qui bascule sur un autre canal si le préféré est en panne, et sur `ConsoleNotifier` (dernier recours, ne dépend de rien) si tous le sont. Une panne est journalisée (`WARNING`, `ERROR` pour le dernier recours), jamais bloquante : l'API répond toujours `200` et expose le canal utilisé dans `delivered_via`. Si aucun fournisseur ne répond (chaîne mal configurée), le titre choisi par l'utilisateur est envoyé tel quel, avec « artiste inconnu ». |
 
 Isolation / DI : `WakeUpService` ne reçoit que des ports via son constructeur. Aucune classe
 métier n'instancie d'implémentation concrète ; l'assemblage est déclaré dans `container.py`
@@ -149,6 +152,7 @@ Développement uniquement (non livrées en production) :
 | httpx | client de test FastAPI | BSD-3-Clause | 0.28.1 | 0.28.1 | à jour |
 | httpcore | via httpx | BSD-3-Clause | 1.0.9 | 1.0.9 | à jour |
 | certifi | via httpx | **MPL-2.0 — justifié ci-dessous** | 2026.7.22 | 2026.7.22 | à jour |
+| ruff | lint | MIT | 0.16.10 | 0.16.10 | à jour |
 
 Composants posant question :
 
@@ -175,6 +179,9 @@ Services externes (pas de SDK, appelés en HTTP via la stdlib) :
 
 ## Tests
 
-`uv run pytest` : 36 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
-réseau réel (`urllib`), le lancement d'uvicorn et une branche de refus du mock SMS,
-volontairement hors tests unitaires.
+`uv run pytest` : 37 tests, 98 % de couverture, seuil d'échec à 95 % (`--cov-fail-under`).
+Les seules lignes non couvertes sont l'appel réseau réel (`urllib`), le lancement d'uvicorn et
+une branche de refus du mock SMS, volontairement hors tests unitaires.
+
+Lint : `ruff` (règles pyflakes, pycodestyle, isort, pyupgrade, bugbear, bandit, blind-except).
+CI : `.github/workflows/ci.yml` lance `uv sync --locked`, `ruff check` et `pytest` à chaque push.

@@ -1,7 +1,7 @@
 import pytest
 
-from reveil_musical.domain import Channel, Day, Track, UserPreferences, Weather
-from reveil_musical.users import InMemoryUserPreferences, UnknownUser
+from reveil_musical.domain import Channel, Day, Track, UnknownUser, UserPreferences, Weather
+from reveil_musical.users import InMemoryUserPreferences
 from reveil_musical.wake_up import WakeUpService
 from tests.conftest import FakeMusic, FakeNotifier, FirstPicker
 
@@ -35,8 +35,8 @@ def test_wake_up_sends_message_on_preferred_channel(prefs):
     notifier = FakeNotifier()
     msg = make_service(prefs, music, notifier).wake_up("u1", Day.LUNDI, Weather.SOLEIL)
     assert music.calls == ["Here Comes the Sun"]
-    assert notifier.sent == [msg]
-    assert msg.channel == Channel.SMS
+    assert notifier.sent[0].text == msg.text
+    assert msg.channel == msg.delivered_via == Channel.SMS
     assert "Here Comes the Sun" in msg.text and "lundi" in msg.text
 
 
@@ -51,9 +51,19 @@ def test_unknown_user(prefs):
         make_service(prefs, FakeMusic()).wake_up("nobody", Day.LUNDI, Weather.SOLEIL)
 
 
-def test_no_track_is_an_error(prefs):
-    with pytest.raises(RuntimeError):
-        make_service(prefs, FakeMusic(None)).wake_up("u1", Day.LUNDI, Weather.SOLEIL)
+def test_no_track_found_still_wakes_up_with_bare_title(prefs):
+    msg = make_service(prefs, FakeMusic(None)).wake_up("u1", Day.LUNDI, Weather.SOLEIL)
+    assert msg.track == Track("Here Comes the Sun", "artiste inconnu")
+
+
+def test_degraded_delivery_is_reported(prefs):
+    class DegradedNotifier:
+        def send(self, message):
+            return Channel.CONSOLE
+
+    service = make_service(prefs, FakeMusic(Track("x", "y")), DegradedNotifier())
+    msg = service.wake_up("u1", Day.LUNDI, Weather.SOLEIL)
+    assert msg.channel == Channel.SMS and msg.delivered_via == Channel.CONSOLE
 
 
 def test_empty_fallback_is_rejected_at_construction():

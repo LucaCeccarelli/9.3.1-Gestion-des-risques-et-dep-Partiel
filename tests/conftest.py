@@ -22,6 +22,7 @@ class FakeNotifier:
         if self.error:
             raise self.error
         self.sent.append(message)
+        return message.channel
 
 
 class FirstPicker:

@@ -1,8 +1,9 @@
 """Modèle métier et ports (interfaces). Aucun détail technique ici."""
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Mapping, Protocol, Sequence
+from typing import Protocol
 
 
 class Weather(StrEnum):
@@ -26,6 +27,7 @@ class Channel(StrEnum):
     EMAIL = "EMAIL"
     SMS = "SMS"
     PUSH = "PUSH"
+    CONSOLE = "CONSOLE"  # dernier recours, jamais choisi par un utilisateur
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,7 @@ class WakeUpMessage:
     day: Day
     weather: Weather
     track: Track
+    delivered_via: Channel | None = None  # canal réellement utilisé, renseigné après envoi
 
     @property
     def text(self) -> str:
@@ -66,6 +69,10 @@ class WakeUpMessage:
             f"Bonjour, c'est {self.day.value.lower()} et il fait {self.weather.value.lower()} : "
             f"réveil avec « {self.track.title} » de {self.track.artist}."
         )
+
+
+class UnknownUser(LookupError):
+    pass
 
 
 # --- Ports -----------------------------------------------------------------
@@ -88,6 +95,6 @@ class MusicProvider(Protocol):
 
 
 class Notifier(Protocol):
-    def send(self, message: WakeUpMessage) -> None:
-        """Envoie le message. Lève en cas de panne du canal."""
+    def send(self, message: WakeUpMessage) -> Channel:
+        """Envoie le message et retourne le canal utilisé. Lève en cas de panne du canal."""
         ...

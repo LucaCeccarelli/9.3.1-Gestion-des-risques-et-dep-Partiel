@@ -43,14 +43,15 @@ def test_push_adapter_raises_when_not_queued(message):
 
 def test_router_uses_preferred_channel(message):
     sms, email = FakeNotifier(), FakeNotifier()
-    ChannelRouter({Channel.EMAIL: email, Channel.SMS: sms}, FakeNotifier()).send(message)
+    used = ChannelRouter({Channel.EMAIL: email, Channel.SMS: sms}, FakeNotifier()).send(message)
+    assert used == Channel.SMS
     assert sms.sent == [message] and email.sent == []
 
 
 def test_router_degrades_to_other_channel(message, caplog):
     sms, email = FakeNotifier(error=TimeoutError("down")), FakeNotifier()
-    ChannelRouter({Channel.EMAIL: email, Channel.SMS: sms}, FakeNotifier()).send(message)
-    assert email.sent == [message]
+    used = ChannelRouter({Channel.EMAIL: email, Channel.SMS: sms}, FakeNotifier()).send(message)
+    assert used == Channel.EMAIL and email.sent == [message]
     assert "mode dégradé" in caplog.text
 
 
@@ -62,7 +63,7 @@ def test_router_falls_back_to_last_resort_when_all_down(message, caplog):
 
 
 def test_console_notifier_prints(message, capsys):
-    ConsoleNotifier().send(message)
+    assert ConsoleNotifier().send(message) == Channel.CONSOLE
     assert message.text in capsys.readouterr().out
 
 

@@ -7,8 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from reveil_musical.container import Container
-from reveil_musical.domain import Channel, Day, Weather
-from reveil_musical.users import UnknownUser
+from reveil_musical.domain import Channel, Day, UnknownUser, Weather
 from reveil_musical.wake_up import WakeUpService
 
 
@@ -20,7 +19,8 @@ class WakeUpRequest(BaseModel):
 
 class WakeUpResponse(BaseModel):
     user_id: str
-    channel: Channel
+    channel: Channel  # canal préféré
+    delivered_via: Channel  # canal réellement utilisé (différent => mode dégradé)
     day: Day
     weather: Weather
     track_title: str
@@ -46,6 +46,7 @@ def create_app(container: Container | None = None) -> FastAPI:
         return WakeUpResponse(
             user_id=msg.user_id,
             channel=msg.channel,
+            delivered_via=msg.delivered_via,
             day=msg.day,
             weather=msg.weather,
             track_title=msg.track.title,
