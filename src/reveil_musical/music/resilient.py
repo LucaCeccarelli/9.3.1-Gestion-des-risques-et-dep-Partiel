@@ -1,7 +1,8 @@
-"""Décorateur de cache (Decorator) et chaîne de secours (Chain of Responsibility)."""
+"""Décorateurs de cache et de limitation de débit (Decorator), chaîne de secours (Chain of Responsibility)."""
 
 import logging
 import time
+from collections import deque
 from collections.abc import Callable, Sequence
 
 from reveil_musical.domain import MusicProvider, Track
@@ -30,6 +31,34 @@ class CachedMusicProvider:
         if track is not None:
             self._cache[query] = (now + self._ttl, track)
         return track
+
+
+class RateLimitedMusicProvider:
+    """Au plus `max_calls` appels par `period` secondes (fenêtre glissante) ; au-delà, None
+    sans appeler le fournisseur, la chaîne passe au suivant. Protège un quota d'API."""
+
+    def __init__(
+        self,
+        inner: MusicProvider,
+        max_calls: int,
+        period: float,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._inner = inner
+        self._max_calls = max_calls
+        self._period = period
+        self._clock = clock
+        self._calls: deque[float] = deque()
+
+    def find(self, query: str) -> Track | None:
+        now = self._clock()
+        while self._calls and self._calls[0] <= now - self._period:
+            self._calls.popleft()
+        if len(self._calls) >= self._max_calls:
+            log.warning("quota %s atteint, fournisseur ignoré", type(self._inner).__name__)
+            return None
+        self._calls.append(now)
+        return self._inner.find(query)
 
 
 class FallbackChainMusicProvider:

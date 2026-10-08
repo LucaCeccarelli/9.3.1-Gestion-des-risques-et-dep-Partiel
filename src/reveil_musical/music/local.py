@@ -1,4 +1,4 @@
-"""Fournisseur de dernier recours : liste codée en dur. Ne tombe jamais en panne."""
+"""Fournisseur de dernier recours : liste codée en dur, sans réseau. Ne tombe jamais en panne."""
 
 from reveil_musical.domain import Track
 
@@ -14,10 +14,8 @@ class LocalMusicProvider:
     def __init__(self, tracks: tuple[Track, ...] = LOCAL_TRACKS) -> None:
         self._tracks = tracks
 
-    def find(self, query: str) -> Track:
+    def find(self, query: str) -> Track | None:
+        """Complète l'artiste si le titre est dans la liste ; sinon None : le cas d'usage garde
+        le titre choisi par l'utilisateur plutôt que de lui imposer un autre morceau."""
         wanted = query.casefold()
-        for track in self._tracks:
-            if wanted in track.title.casefold():
-                return track
-        # ponytail: choix déterministe par hash de la requête ; aléatoire pondéré si besoin
-        return self._tracks[sum(map(ord, query)) % len(self._tracks)]
+        return next((t for t in self._tracks if wanted in t.title.casefold()), None)

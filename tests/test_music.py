@@ -2,9 +2,13 @@ import pytest
 
 from reveil_musical.domain import Track
 from reveil_musical.music.itunes import ITunesMusicProvider
-from reveil_musical.music.local import LOCAL_TRACKS, LocalMusicProvider
+from reveil_musical.music.local import LocalMusicProvider
 from reveil_musical.music.musicbrainz import MusicBrainzMusicProvider
-from reveil_musical.music.resilient import CachedMusicProvider, FallbackChainMusicProvider
+from reveil_musical.music.resilient import (
+    CachedMusicProvider,
+    FallbackChainMusicProvider,
+    RateLimitedMusicProvider,
+)
 from tests.conftest import FakeHttp, FakeMusic
 
 ITUNES = {
@@ -41,11 +45,10 @@ def test_musicbrainz_skips_incomplete():
     assert MusicBrainzMusicProvider(http, "ua").find("x") is None
 
 
-def test_local_matches_title_or_picks_deterministically():
+def test_local_matches_title_else_none():
     local = LocalMusicProvider()
-    assert local.find("lovely day").title == "Lovely Day"
-    assert local.find("zzz") in LOCAL_TRACKS
-    assert local.find("zzz") == local.find("zzz")
+    assert local.find("lovely day") == Track("Lovely Day", "Bill Withers")
+    assert local.find("zzz") is None
 
 
 def test_cache_hits_until_ttl_expires():
@@ -68,6 +71,18 @@ def test_cache_does_not_store_misses():
     assert inner.calls == ["q", "q"]
 
 
+def test_rate_limit_blocks_beyond_quota_then_releases():
+    inner = FakeMusic(Track("a", "b"))
+    now = [0.0]
+    limited = RateLimitedMusicProvider(inner, max_calls=2, period=60, clock=lambda: now[0])
+    assert limited.find("q1") == limited.find("q2") == Track("a", "b")
+    assert limited.find("q3") is None  # quota atteint : pas d'appel, la chaîne passera au suivant
+    assert inner.calls == ["q1", "q2"]
+    now[0] = 61
+    assert limited.find("q4") == Track("a", "b")
+    assert inner.calls == ["q1", "q2", "q4"]
+
+
 def test_chain_skips_failing_and_empty_providers():
     down = FakeMusic(error=ConnectionError("boom"))
     empty = FakeMusic(None)
@@ -85,6 +100,6 @@ def test_chain_requires_providers():
         FallbackChainMusicProvider([])
 
 
-def test_chain_with_local_never_silent():
+def test_chain_with_local_completes_known_title():
     chain = FallbackChainMusicProvider([FakeMusic(error=OSError()), LocalMusicProvider()])
-    assert chain.find("anything") is not None
+    assert chain.find("good morning") == Track("Good Morning", "Gene Kelly")
