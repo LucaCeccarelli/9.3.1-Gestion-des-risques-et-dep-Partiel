@@ -1,4 +1,4 @@
-"""Route vers le canal préféré ; en cas de panne, bascule sur un autre canal (mode dégradé)."""
+"""Chain of Responsibility sur les canaux : préféré d'abord, sinon bascule (mode dégradé)."""
 
 import logging
 from collections.abc import Mapping

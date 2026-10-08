@@ -1,4 +1,4 @@
-"""Décorateurs de fournisseurs : cache (respect du rate-limit) et chaîne de secours."""
+"""Décorateur de cache (Decorator) et chaîne de secours (Chain of Responsibility)."""
 
 import logging
 import time

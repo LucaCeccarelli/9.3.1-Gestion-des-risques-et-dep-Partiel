@@ -1,4 +1,4 @@
-"""Adaptateurs : ramènent chaque mock vers le port Notifier."""
+"""Adaptateurs (pattern Adapter) : ramènent chaque mock vers le port Notifier."""
 
 from reveil_musical.domain import WakeUpMessage
 from reveil_musical.notification.mocks import EmailMock, PushMock, SmsMock

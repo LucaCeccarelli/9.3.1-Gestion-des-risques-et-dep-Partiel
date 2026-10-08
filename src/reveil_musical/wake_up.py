@@ -1,4 +1,4 @@
-"""Cas d'usage : déclencher le réveil d'un utilisateur."""
+"""Cas d'usage (Facade) : déclencher le réveil d'un utilisateur. Ne dépend que des ports."""
 
 from reveil_musical.domain import (
     Day,

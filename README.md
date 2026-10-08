@@ -54,6 +54,20 @@ Rate-limit iTunes (~20 req/min) : `CachedMusicProvider` mémorise chaque requêt
 Un réveil par utilisateur et par jour, avec des morceaux fixes par météo, tient donc largement
 dans la limite.
 
+## Design patterns
+
+| Pattern | Où | Pourquoi |
+|---|---|---|
+| Adapter | `notification/adapters.py`, `music/itunes.py`, `music/musicbrainz.py` | ramener des interfaces hétérogènes (mocks, JSON des APIs) vers les ports métier |
+| Strategy | ports `MusicProvider` / `Notifier` injectés dans `WakeUpService` | changer de fournisseur ou de canal sans toucher au métier |
+| Decorator | `CachedMusicProvider` | ajouter le cache (rate-limit) à n'importe quel fournisseur |
+| Chain of Responsibility | `FallbackChainMusicProvider`, `ChannelRouter` | passer au suivant en cas de panne : jamais de silence |
+| Facade | `WakeUpService` | un seul point d'entrée pour le déclencheur |
+| Factory (fonction) | `container.build_wake_up_service` | seul lieu d'instanciation du concret |
+
+Injection de dépendances : par constructeur, sans bibliothèque. `container.py` est la racine
+de composition ; aucune classe métier n'instancie d'implémentation concrète.
+
 ## Dépendances : licence, version, fraîcheur
 
 Audit du 2026-10-08. Aucune dépendance en production. Outils de développement uniquement :

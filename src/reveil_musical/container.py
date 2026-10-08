@@ -1,4 +1,4 @@
-"""Racine de composition : seul endroit où les implémentations concrètes sont assemblées."""
+"""Racine de composition (Factory) : seul endroit où les implémentations concrètes sont assemblées."""
 
 from reveil_musical.domain import Channel
 from reveil_musical.music.http import HttpClient, UrllibHttpClient
