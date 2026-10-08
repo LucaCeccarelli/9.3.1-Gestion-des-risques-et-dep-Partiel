@@ -33,7 +33,7 @@ src/reveil_musical/
 │   ├── mocks.py         EmailMock / SmsMock / PushMock, interfaces volontairement différentes
 │   ├── adapters.py      ramènent chaque mock vers le port Notifier
 │   └── router.py        ChannelRouter : canal préféré, sinon bascule sur un autre (mode dégradé)
-├── container.py         racine de composition : seul endroit où le concret est assemblé
+├── container.py         conteneur DI (dependency-injector) : seul endroit où le concret est assemblé
 └── cli.py               point d'entrée
 ```
 
@@ -43,12 +43,14 @@ Traduction des quatre exigences :
 |---|---|
 | Changer de fournisseur musical | `MusicProvider` est un port ; iTunes, MusicBrainz et le fallback local sont interchangeables. `trackViewUrl` et `artist-credit` ne sortent pas de leur adaptateur : le métier ne voit que `Track(title, artist)`. |
 | Ajouter un canal (WhatsApp, vocal…) | Un adaptateur `Notifier` + une entrée dans le `ChannelRouter` du conteneur. Rien d'autre ne change. |
-| Vérification des dépendances | Tableau ci-dessous. Aucune dépendance runtime : HTTP via `urllib` (stdlib). |
+| Vérification des dépendances | Tableau ci-dessous. Une seule dépendance runtime (`dependency-injector`, BSD) ; HTTP via `urllib` (stdlib). |
 | Jamais de silence | Chaîne de fournisseurs avec fallback local en fin de chaîne ; routeur de canaux qui bascule sur un autre canal si le préféré est en panne. Une panne est journalisée (`WARNING`), jamais bloquante. |
 
 Isolation / DI : `WakeUpService` ne reçoit que des ports via son constructeur. Aucune classe
-métier n'instancie d'implémentation concrète ; l'assemblage se fait uniquement dans
-`container.py` (racine de composition). Les tests injectent des doublures.
+métier n'instancie d'implémentation concrète ; l'assemblage est déclaré dans `container.py`
+(`Container`, un `DeclarativeContainer` de `dependency-injector`). Chaque fournisseur, canal
+ou client HTTP est un `provider` remplaçable par `container.<nom>.override(...)` — c'est ce que
+font les tests, et ce que ferait un changement de fournisseur en production.
 
 Rate-limit iTunes (~20 req/min) : `CachedMusicProvider` mémorise chaque requête réussie 1 h.
 Un réveil par utilisateur et par jour, avec des morceaux fixes par météo, tient donc largement
@@ -63,14 +65,23 @@ dans la limite.
 | Decorator | `CachedMusicProvider` | ajouter le cache (rate-limit) à n'importe quel fournisseur |
 | Chain of Responsibility | `FallbackChainMusicProvider`, `ChannelRouter` | passer au suivant en cas de panne : jamais de silence |
 | Facade | `WakeUpService` | un seul point d'entrée pour le déclencheur |
-| Factory (fonction) | `container.build_wake_up_service` | seul lieu d'instanciation du concret |
+| IoC container | `container.Container` (`dependency-injector`) | déclare le graphe, instancie le concret, permet `override` |
 
-Injection de dépendances : par constructeur, sans bibliothèque. `container.py` est la racine
-de composition ; aucune classe métier n'instancie d'implémentation concrète.
+Injection de dépendances : par constructeur, orchestrée par `dependency-injector`. Les classes
+métier ne voient que des ports ; le conteneur est le seul à connaître les implémentations.
 
 ## Dépendances : licence, version, fraîcheur
 
-Audit du 2026-10-08. Aucune dépendance en production. Outils de développement uniquement :
+Audit du 2026-10-08.
+
+Production :
+
+| Package | Rôle | Licence | Installée | Dernière stable (PyPI) | Remarque |
+|---|---|---|---|---|---|
+| dependency-injector | conteneur IoC | BSD-3-Clause | 4.49.1 | 4.49.1 | à jour ; extensions Cython compilées, wheels fournis pour Linux/macOS/Windows |
+| typing-extensions | (via dependency-injector, Python < 3.13) | PSF-2.0 | 4.16.0 | 4.16.0 | à jour ; disparaît en passant à Python 3.13 |
+
+Développement :
 
 | Package | Rôle | Licence | Installée | Dernière stable (PyPI) | Remarque |
 |---|---|---|---|---|---|
@@ -98,5 +109,5 @@ Pour refaire l'audit : `uv tree` puis comparer avec `https://pypi.org/pypi/<pack
 
 ## Tests
 
-`uv run pytest` : 28 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
+`uv run pytest` : 29 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
 réseau réel (`urllib`) et une branche de refus du mock SMS, volontairement hors tests unitaires.

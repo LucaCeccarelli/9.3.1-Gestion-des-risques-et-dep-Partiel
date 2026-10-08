@@ -3,7 +3,7 @@
 import argparse
 import logging
 
-from reveil_musical.container import build_wake_up_service
+from reveil_musical.container import Container
 from reveil_musical.domain import Day, Weather
 
 
@@ -14,4 +14,4 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("weather", type=Weather, choices=list(Weather))
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
-    build_wake_up_service().wake_up(args.user_id, args.day, args.weather)
+    Container().wake_up_service().wake_up(args.user_id, args.day, args.weather)

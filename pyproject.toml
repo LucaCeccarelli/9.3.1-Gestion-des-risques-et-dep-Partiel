@@ -7,7 +7,9 @@ authors = [
     { name = "Luca Ceccarelli", email = "lucabuco03@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "dependency-injector>=4.49.1",
+]
 
 [project.scripts]
 reveil-musical = "reveil_musical.cli:main"
