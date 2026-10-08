@@ -1,6 +1,6 @@
 import pytest
 
-from reveil_musical.domain import Channel, Day, Track, Weather
+from reveil_musical.domain import Channel, Day, Track, UserPreferences, Weather
 from reveil_musical.users import InMemoryUserPreferences, UnknownUser
 from reveil_musical.wake_up import WakeUpService
 from tests.conftest import FakeMusic, FakeNotifier, FirstPicker
@@ -54,3 +54,8 @@ def test_unknown_user(prefs):
 def test_no_track_is_an_error(prefs):
     with pytest.raises(RuntimeError):
         make_service(prefs, FakeMusic(None)).wake_up("u1", Day.LUNDI, Weather.SOLEIL)
+
+
+def test_empty_fallback_is_rejected_at_construction():
+    with pytest.raises(ValueError):
+        UserPreferences("x", tracks_by_weather={}, fallback_tracks=[], channel=Channel.EMAIL)

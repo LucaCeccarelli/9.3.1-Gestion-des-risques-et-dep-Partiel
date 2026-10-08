@@ -42,6 +42,10 @@ class UserPreferences:
     channel: Channel
     tracks_by_day: Mapping[Day, Sequence[str]] = field(default_factory=dict)  # jour -> morceaux
 
+    def __post_init__(self) -> None:
+        if not self.fallback_tracks:  # garantit candidates() non vide : jamais de silence
+            raise ValueError(f"{self.user_id} : au moins un morceau de secours requis")
+
     def candidates(self, day: Day, weather: Weather) -> list[str]:
         """Morceaux possibles : ceux du jour et ceux de la météo réunis, sinon les secours."""
         pool = [*self.tracks_by_day.get(day, ()), *self.tracks_by_weather.get(weather, ())]

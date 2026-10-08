@@ -20,6 +20,8 @@ curl -X POST localhost:8000/wake-up -H 'content-type: application/json' \
      -d '{"user_id": "alice", "day": "LUNDI", "weather": "PLUIE"}'
 ```
 
+Réponse (tirage au sort parmi les candidats du jour et de la météo, ici l'un des trois possibles) :
+
 ```json
 {"user_id": "alice", "channel": "EMAIL", "day": "LUNDI", "weather": "PLUIE",
  "track_title": "Riders on the Storm", "track_artist": "The Doors",
@@ -69,7 +71,7 @@ Traduction des quatre exigences :
 | Besoin métier | Réponse technique |
 |---|---|
 | Changer de fournisseur musical | `MusicProvider` est un port ; iTunes, MusicBrainz et le fallback local sont interchangeables. `trackViewUrl` et `artist-credit` ne sortent pas de leur adaptateur : le métier ne voit que `Track(title, artist)`. |
-| Ajouter un canal (WhatsApp, vocal…) | Un adaptateur `Notifier` + une entrée dans le `ChannelRouter` du conteneur. Rien d'autre ne change. |
+| Ajouter un canal (WhatsApp, vocal…) | Une valeur dans l'enum `Channel`, un adaptateur `Notifier` et une entrée dans le `ChannelRouter` du conteneur. Le métier ne change pas. |
 | Vérification des dépendances | Tableau ci-dessous, régénérable avec `uv tree --outdated` et `uvx pip-licenses`. HTTP sortant via `urllib` (stdlib), pas de SDK tiers. |
 | Jamais de silence | Chaîne de fournisseurs avec fallback local en fin de chaîne ; routeur de canaux qui bascule sur un autre canal si le préféré est en panne, et sur `ConsoleNotifier` (dernier recours, ne dépend de rien) si tous le sont. Une panne est journalisée (`WARNING`, `ERROR` pour le dernier recours), jamais bloquante : l'API répond toujours `200`. |
 
@@ -173,6 +175,6 @@ Services externes (pas de SDK, appelés en HTTP via la stdlib) :
 
 ## Tests
 
-`uv run pytest` : 35 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
+`uv run pytest` : 36 tests, 98 % de couverture. Les seules lignes non couvertes sont l'appel
 réseau réel (`urllib`), le lancement d'uvicorn et une branche de refus du mock SMS,
 volontairement hors tests unitaires.
